@@ -30,7 +30,8 @@ export const swaggerDocument = {
                 tags: ["Google OAuth"],
                 summary: "Google login",
                 description:
-                    "Receives a Google ID token, verifies it, sets a refresh token cookie, and returns the user with an access token.",
+                    // CHANGED: no cookies; tokens returned in JSON body.
+                    "Receives a Google ID token, verifies it, and returns the user along with access and refresh tokens in the response body.",
                 requestBody: {
                     required: true,
                     content: {
@@ -54,15 +55,7 @@ export const swaggerDocument = {
                 responses: {
                     "200": {
                         description: "Successfully authenticated with Google",
-                        headers: {
-                            "Set-Cookie": {
-                                description:
-                                    "HTTP-only refresh token cookie (refreshToken=...).",
-                                schema: {
-                                    type: "string",
-                                },
-                            },
-                        },
+                        // CHANGED: removed Set-Cookie header; everything is in JSON now.
                         content: {
                             "application/json": {
                                 schema: {
@@ -86,16 +79,32 @@ export const swaggerDocument = {
         },
 
         "/api/v1/auth/get-access": {
-            get: {
+            // CHANGED: method GET -> POST and uses body refreshToken instead of cookie.
+            post: {
                 tags: ["Google OAuth"],
                 summary: "Get new access token",
                 description:
-                    "Uses the refreshToken cookie to issue a new access token and return the user.",
-                security: [
-                    {
-                        RefreshTokenCookieAuth: [],
+                    "Receives a refresh token in the request body, verifies it, and issues a new access token along with the user.",
+                requestBody: {
+                    required: true,
+                    content: {
+                        "application/json": {
+                            schema: {
+                                type: "object",
+                                required: ["refreshToken"],
+                                properties: {
+                                    refreshToken: {
+                                        type: "string",
+                                        description: "JWT refresh token",
+                                        example:
+                                            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.REFRESH...",
+                                    },
+                                },
+                            },
+                        },
                     },
-                ],
+                },
+                // CHANGED: no cookie-based security here.
                 responses: {
                     "200": {
                         description: "New access token issued successfully.",
@@ -127,10 +136,12 @@ export const swaggerDocument = {
                 tags: ["Wardrobe"],
                 summary: "Generate S3 presigned URLs",
                 description:
-                    "Receives file metadata and returns presigned URLs along with S3 keys. Authentication required via accessToken cookie.",
+                    // CHANGED: no accessToken cookie, use Authorization header.
+                    "Receives file metadata and returns presigned URLs along with S3 keys. Authentication required via Authorization: Bearer <accessToken> header.",
                 security: [
+                    // CHANGED: use bearer token security.
                     {
-                        AccessTokenCookieAuth: [],
+                        AccessTokenAuth: [],
                     },
                 ],
                 requestBody: {
@@ -189,7 +200,8 @@ export const swaggerDocument = {
                         },
                     },
                     "401": {
-                        description: "Unauthorized - Missing or invalid accessToken cookie",
+                        description:
+                            "Unauthorized - Missing or invalid access token in Authorization header",
                         content: {
                             "application/json": {
                                 schema: {
@@ -367,10 +379,11 @@ export const swaggerDocument = {
                 tags: ["Wardrobe"],
                 summary: "Complete wardrobe upload and fetch image metadata",
                 description:
-                    "Takes a list of S3 object keys for uploaded wardrobe images, fetches their metadata from the database, and returns paginated results along with signed URLs for access. Requires accessToken cookie.",
+                    // CHANGED: no cookie; uses Authorization header.
+                    "Takes a list of S3 object keys for uploaded wardrobe images, fetches their metadata from the database, and returns paginated results along with signed URLs for access. Requires Authorization: Bearer <accessToken> header.",
                 security: [
                     {
-                        AccessTokenCookieAuth: [],
+                        AccessTokenAuth: [],
                     },
                 ],
                 requestBody: {
@@ -423,7 +436,8 @@ export const swaggerDocument = {
                         },
                     },
                     "401": {
-                        description: "Unauthorized - Missing or invalid accessToken cookie",
+                        description:
+                            "Unauthorized - Missing or invalid access token in Authorization header",
                         content: {
                             "application/json": {
                                 schema: {
@@ -442,10 +456,11 @@ export const swaggerDocument = {
                 tags: ["Wardrobe"],
                 summary: "Get wardrobe uploaded images",
                 description:
-                    "Returns paginated wardrobe images for the authenticated user, including signed URLs to access each image. Authentication required via accessToken cookie.",
+                    // CHANGED: cookie -> Authorization header.
+                    "Returns paginated wardrobe images for the authenticated user, including signed URLs to access each image. Authentication required via Authorization: Bearer <accessToken> header.",
                 security: [
                     {
-                        AccessTokenCookieAuth: [],
+                        AccessTokenAuth: [],
                     },
                 ],
                 parameters: [
@@ -484,7 +499,8 @@ export const swaggerDocument = {
                         },
                     },
                     "401": {
-                        description: "Unauthorized - Missing or invalid accessToken cookie",
+                        description:
+                            "Unauthorized - Missing or invalid access token in Authorization header",
                         content: {
                             "application/json": {
                                 schema: {
@@ -500,16 +516,13 @@ export const swaggerDocument = {
 
     components: {
         securitySchemes: {
-            AccessTokenCookieAuth: {
-                type: "apiKey",
-                in: "cookie",
-                name: "accessToken",
+            // CHANGED: switched from cookie-based apiKey to standard Bearer JWT.
+            AccessTokenAuth: {
+                type: "http",
+                scheme: "bearer",
+                bearerFormat: "JWT",
             },
-            RefreshTokenCookieAuth: {
-                type: "apiKey",
-                in: "cookie",
-                name: "refreshToken",
-            },
+            // NOTE: no RefreshTokenCookieAuth anymore; refresh is sent in body.
         },
 
         schemas: {
@@ -548,7 +561,7 @@ export const swaggerDocument = {
 
             GoogleAuthResponse: {
                 type: "object",
-                required: ["user", "accessToken"],
+                required: ["user", "accessToken"], // CHANGED: refreshToken is optional but present on login.
                 properties: {
                     user: {
                         $ref: "#/components/schemas/User",
@@ -558,6 +571,13 @@ export const swaggerDocument = {
                         description: "JWT access token",
                         example:
                             "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OTMxNTE0ZTMxMDljOGIzZmQ5YWM5YWEiLCJpYXQiOjE3MzM2MDQ2MDAsImV4cCI6MTczMzYwODIwMH0.XXX",
+                    },
+                    // CHANGED: added refreshToken to support mobile (no cookies).
+                    refreshToken: {
+                        type: "string",
+                        description: "Long-lived JWT refresh token (used to get new access tokens)",
+                        example:
+                            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.REFRESH_TOKEN_EXAMPLE",
                     },
                 },
             },
