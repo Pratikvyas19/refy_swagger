@@ -7,8 +7,12 @@ export const swaggerDocument = {
 
     servers: [
         {
-            url: "http://localhost:8080",
-            description: "Local development server",
+            url: "http://65.0.105.98:8080/",
+            description: "Main development server",
+        },
+        {
+            url: "http://65.0.105.98:8081/",
+            description: "Dev development server",
         },
     ],
 
