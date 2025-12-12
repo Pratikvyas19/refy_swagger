@@ -84,7 +84,7 @@ export const swaggerDocument = {
 
         "/api/v1/auth/get-access": {
             // CHANGED: method GET -> POST and uses body refreshToken instead of cookie.
-            post: {
+            get: {
                 tags: ["Google OAuth"],
                 summary: "Get new access token",
                 description:
